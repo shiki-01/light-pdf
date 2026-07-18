@@ -63,6 +63,7 @@
     Object.assign(settings, DEFAULT_SETTINGS, PRESET_VALUES[id], {
       outputName: settings.outputName,
       unifyWidth: settings.unifyWidth,
+      splitZip: settings.splitZip,
     });
   }
 
@@ -142,10 +143,13 @@
     if (list.length > 0) void addFiles(list);
   }
 
-  function defaultOutputName(): string {
+  function outputFileName(): string {
+    const ext = settings.splitZip ? ".zip" : ".pdf";
+    const typed = settings.outputName.trim().replace(/\.(pdf|zip)$/i, "");
+    if (typed) return typed + ext;
     const first = pages[0] ? files.get(pages[0].fileId) : undefined;
     const base = (first?.name ?? "output").replace(/\.[^.]+$/, "");
-    return `${base}_light.pdf`;
+    return `${base}_light${ext}`;
   }
 
   async function run() {
@@ -163,9 +167,9 @@
         },
         abortController.signal,
       );
-      const fileName = settings.outputName.trim() || defaultOutputName();
+      const fileName = outputFileName();
       const file = new File([bytes as BlobPart], fileName, {
-        type: "application/pdf",
+        type: settings.splitZip ? "application/zip" : "application/pdf",
       });
       if (lastResultUrl != null) URL.revokeObjectURL(lastResultUrl);
       lastResultUrl = URL.createObjectURL(file);

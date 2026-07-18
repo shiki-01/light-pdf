@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	removeMetadata: true,
 	removeAnnotations: false,
 	unifyWidth: false,
+	splitZip: false,
 	outputName: ''
 };
 

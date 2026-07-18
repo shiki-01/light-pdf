@@ -16,6 +16,8 @@ export interface Settings {
 	removeAnnotations: boolean;
 	/** 全ページの横幅を最頻の横幅に合わせて拡縮する */
 	unifyWidth: boolean;
+	/** ページごとに個別 PDF として ZIP 出力する（要件 3.4 オプション） */
+	splitZip: boolean;
 	/** '' = 自動（最初のファイル名 + _light.pdf） */
 	outputName: string;
 }
