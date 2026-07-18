@@ -5,6 +5,7 @@
   import PageGrid from "$lib/components/PageGrid.svelte";
   import ProgressOverlay from "$lib/components/ProgressOverlay.svelte";
   import PreviewModal from "$lib/components/PreviewModal.svelte";
+  import CompareModal from "$lib/components/CompareModal.svelte";
   import HelpModal from "$lib/components/HelpModal.svelte";
   import ResultPanel, {
     type ResultData,
@@ -37,6 +38,7 @@
   let loading = $state(false);
   let processing = $state<ProgressInfo | null>(null);
   let result = $state<ResultData | null>(null);
+  let compareOpen = $state(false);
   let previewItem = $state<PageItem | null>(null);
   let processError = $state<string | null>(null);
   let abortController: AbortController | null = null;
@@ -155,6 +157,7 @@
   async function run() {
     processError = null;
     result = null;
+    compareOpen = false;
     abortController = new AbortController();
     processing = { label: "準備中", done: 0, total: pages.length };
     try {
@@ -179,6 +182,10 @@
         inputSize: totalInputSize,
         outputSize: bytes.length,
         file,
+        bytes,
+        // 前後比較用に処理時点のページ順を保持する（後から編集されても対応が崩れないように）
+        pages: pages.map((p) => ({ ...p })),
+        isZip: settings.splitZip,
       };
     } catch (e) {
       if (!(e instanceof CancelledError)) {
@@ -200,6 +207,7 @@
     files.clear();
     errors = [];
     result = null;
+    compareOpen = false;
   }
 </script>
 
@@ -263,7 +271,11 @@
     {/if}
 
     {#if result}
-      <ResultPanel {result} onBack={() => (result = null)} />
+      <ResultPanel
+        {result}
+        onBack={() => (result = null)}
+        onCompare={() => (compareOpen = true)}
+      />
     {/if}
 
     {#if processError}
@@ -315,6 +327,15 @@
 
 {#if processing}
   <ProgressOverlay progress={processing} onCancel={cancel} />
+{/if}
+
+{#if compareOpen && result && !result.isZip}
+  <CompareModal
+    bytes={result.bytes}
+    pages={result.pages}
+    imageBytes={(fileId) => files.get(fileId)?.bytes ?? null}
+    onClose={() => (compareOpen = false)}
+  />
 {/if}
 
 {#if previewItem}

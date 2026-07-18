@@ -1,10 +1,18 @@
 <script module lang="ts">
+	import type { PageItem } from '../types';
+
 	export interface ResultData {
 		url: string;
 		fileName: string;
 		inputSize: number;
 		outputSize: number;
 		file: File;
+		/** 出力バイト列（前後比較プレビューで使用） */
+		bytes: Uint8Array;
+		/** 処理時点のページ一覧（出力とページ順が対応） */
+		pages: PageItem[];
+		/** ZIP 出力（前後比較の対象外） */
+		isZip: boolean;
 	}
 
 	function fmtBytes(n: number): string {
@@ -17,10 +25,12 @@
 <script lang="ts">
 	let {
 		result,
-		onBack
+		onBack,
+		onCompare
 	}: {
 		result: ResultData;
 		onBack: () => void;
+		onCompare: () => void;
 	} = $props();
 
 	const reduction = $derived(
@@ -56,6 +66,9 @@
 	</p>
 	<div class="buttons">
 		<a class="download" href={result.url} download={result.fileName}>ダウンロード</a>
+		{#if !result.isZip}
+			<button onclick={onCompare}>前後を比較</button>
+		{/if}
 		{#if canShare}
 			<button onclick={share}>共有</button>
 		{/if}
