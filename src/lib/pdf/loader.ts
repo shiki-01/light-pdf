@@ -67,12 +67,43 @@ export async function renderPdfPageToCanvas(
 	return canvas;
 }
 
-async function renderThumb(doc: PDFDocumentProxy, pageIndex: number): Promise<string> {
-	const canvas = await renderPdfPageToCanvas(doc, pageIndex, 0, THUMB_LONG_SIDE);
-	return canvas.toDataURL('image/jpeg', 0.75);
+/** 白紙判定: この輝度未満を「描画あり」とみなす */
+const BLANK_LUMA_THRESHOLD = 230;
+/** 白紙判定: 描画ありピクセルがこの割合未満なら白紙（スキャンのノイズ・縁を許容） */
+const BLANK_DARK_RATIO = 0.005;
+
+/**
+ * サムネイル画像から白紙ページかどうかを判定する（要件 7: 白紙ページの検出）。
+ * 削除候補の提示に使うだけなので誤検出しても実害は小さい。
+ */
+function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
+	const ctx = canvas.getContext('2d');
+	if (!ctx) return false;
+	const { width: w, height: h } = canvas;
+	if (w * h === 0) return false;
+	const d = ctx.getImageData(0, 0, w, h).data;
+	const limit = w * h * BLANK_DARK_RATIO;
+	let dark = 0;
+	for (let i = 0; i < w * h; i++) {
+		const a = d[i * 4 + 3];
+		if (a < 128) continue; // 透明は背景（白）扱い
+		const y = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+		if (y < BLANK_LUMA_THRESHOLD && ++dark > limit) return false;
+	}
+	return true;
 }
 
-async function bitmapThumb(bmp: ImageBitmap): Promise<string> {
+interface ThumbResult {
+	url: string;
+	isBlank: boolean;
+}
+
+async function renderThumb(doc: PDFDocumentProxy, pageIndex: number): Promise<ThumbResult> {
+	const canvas = await renderPdfPageToCanvas(doc, pageIndex, 0, THUMB_LONG_SIDE);
+	return { url: canvas.toDataURL('image/jpeg', 0.75), isBlank: isCanvasBlank(canvas) };
+}
+
+async function bitmapThumb(bmp: ImageBitmap): Promise<ThumbResult> {
 	const scale = Math.min(1, THUMB_LONG_SIDE / Math.max(bmp.width, bmp.height));
 	const canvas = document.createElement('canvas');
 	canvas.width = Math.max(1, Math.round(bmp.width * scale));
@@ -81,13 +112,13 @@ async function bitmapThumb(bmp: ImageBitmap): Promise<string> {
 	ctx.fillStyle = '#fff';
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 	ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-	return canvas.toDataURL('image/jpeg', 0.75);
+	return { url: canvas.toDataURL('image/jpeg', 0.75), isBlank: isCanvasBlank(canvas) };
 }
 
 export interface LoadCallbacks {
 	onPage: (page: PageItem) => void;
 	/** サムネイル生成は非同期のため、完成時に id 指定で通知する */
-	onThumb: (pageId: string, url: string) => void;
+	onThumb: (pageId: string, thumb: ThumbResult) => void;
 }
 
 async function loadPdf(
@@ -146,6 +177,7 @@ async function loadPdf(
 			pageIndex: i,
 			rotation: 0,
 			thumbUrl: null,
+			isBlank: false,
 			modeOverride: null,
 			widthPts: vp.width,
 			heightPts: vp.height
@@ -154,7 +186,7 @@ async function loadPdf(
 		cb.onPage(item);
 		// サムネイルは非同期に埋める（UI を待たせない）
 		void renderThumb(doc, i)
-			.then((url) => cb.onThumb(item.id, url))
+			.then((thumb) => cb.onThumb(item.id, thumb))
 			.catch(() => {
 				/* サムネイル失敗はページ自体には影響させない */
 			});
@@ -199,6 +231,7 @@ async function loadImage(
 		pageIndex: 0,
 		rotation: 0,
 		thumbUrl: null,
+		isBlank: false,
 		modeOverride: null,
 		// 96dpi 相当で pt 換算（process.ts の埋め込みと同一基準）
 		widthPts: bmp.width * (72 / 96),
@@ -206,7 +239,7 @@ async function loadImage(
 	};
 	cb.onPage(item);
 	void bitmapThumb(bmp)
-		.then((url) => cb.onThumb(item.id, url))
+		.then((thumb) => cb.onThumb(item.id, thumb))
 		.finally(() => bmp.close());
 	return { loaded, pages: [item] };
 }

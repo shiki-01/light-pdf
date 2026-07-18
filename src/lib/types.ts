@@ -31,6 +31,8 @@ export interface PageItem {
 	/** ユーザーが追加した回転（表示・出力に反映） */
 	rotation: Rotation;
 	thumbUrl: string | null;
+	/** サムネイル解析による白紙ページ判定（削除候補の提示に使用） */
+	isBlank: boolean;
 	modeOverride: Mode | null;
 	/** ページの表示サイズ（pt、PDF 固有の回転適用後・ユーザー回転適用前） */
 	widthPts: number;

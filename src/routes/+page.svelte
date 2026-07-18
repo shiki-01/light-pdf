@@ -84,9 +84,12 @@
         onPage: (page) => {
           pages.push(page);
         },
-        onThumb: (pageId, url) => {
+        onThumb: (pageId, thumb) => {
           const item = pages.find((p) => p.id === pageId);
-          if (item) item.thumbUrl = url;
+          if (item) {
+            item.thumbUrl = thumb.url;
+            item.isBlank = thumb.isBlank;
+          }
         },
       });
       for (const f of r.files) files.set(f.id, f);

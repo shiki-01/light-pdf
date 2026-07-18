@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import { applyGrayscale, encodeCanvasAuto } from './encode';
 import { getDoc, renderPdfPageToCanvas } from './loader';
+import type { PDFPageProxy } from './pdfjs';
 
 export class CancelledError extends Error {
 	constructor() {
@@ -69,6 +70,33 @@ function unifyPageSize(
 	return { widthPts: targetWidthPts, heightPts: heightPts * k };
 }
 
+/** 文字中心ページと判定する非空白文字数のしきい値 */
+const TEXT_HEAVY_CHARS = 300;
+/** 文字中心ページで JPEG 品質を引き上げる量（上限 95） */
+const TEXT_HEAVY_QUALITY_BOOST = 10;
+
+/**
+ * 文字中心ページの JPEG 品質自動引き上げ（要件 8.4）。
+ * フルページのラスタライズでは実質 JPEG が選ばれるため、
+ * 文字のにじみ対策としてテキスト量の多いページだけ品質を上げる。
+ */
+async function autoJpegQuality(page: PDFPageProxy, settings: Settings): Promise<number> {
+	if (settings.rasterFormat === 'png') return settings.jpegQuality;
+	try {
+		const tc = await page.getTextContent();
+		let chars = 0;
+		for (const item of tc.items) {
+			if ('str' in item) chars += item.str.replace(/\s/g, '').length;
+		}
+		if (chars >= TEXT_HEAVY_CHARS) {
+			return Math.min(95, settings.jpegQuality + TEXT_HEAVY_QUALITY_BOOST);
+		}
+	} catch {
+		// テキスト抽出失敗時は通常品質のまま
+	}
+	return settings.jpegQuality;
+}
+
 async function rasterizePdfPage(
 	item: PageItem,
 	settings: Settings,
@@ -86,7 +114,8 @@ async function rasterizePdfPage(
 		rasterTarget(Math.max(vp.width, vp.height), settings)
 	);
 	if (settings.grayscale) applyGrayscale(canvas);
-	const { bytes, format } = await encodeCanvasAuto(canvas, settings.rasterFormat, settings.jpegQuality);
+	const quality = await autoJpegQuality(page, settings);
+	const { bytes, format } = await encodeCanvasAuto(canvas, settings.rasterFormat, quality);
 	return { kind: 'image', bytes, format, ...unifyPageSize(vp.width, vp.height, targetWidthPts) };
 }
 
