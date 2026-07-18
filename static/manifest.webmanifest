@@ -1,0 +1,18 @@
+{
+	"name": "light-pdf",
+	"short_name": "light-pdf",
+	"description": "PDF・画像をブラウザ内で結合・軽量化",
+	"lang": "ja",
+	"start_url": ".",
+	"display": "standalone",
+	"background_color": "#14161a",
+	"theme_color": "#2563eb",
+	"icons": [
+		{
+			"src": "icon.svg",
+			"sizes": "any",
+			"type": "image/svg+xml",
+			"purpose": "any"
+		}
+	]
+}
