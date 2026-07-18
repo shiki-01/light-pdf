@@ -93,3 +93,42 @@ export type BuildResponse =
 	| { type: 'progress'; label: string; done: number; total: number }
 	| { type: 'done'; bytes: Uint8Array }
 	| { type: 'error'; message: string };
+
+/* ラスタライズ Worker とのメッセージ */
+
+/** pdf.js が実行時に読み込むアセットの URL（Worker 内解決用に絶対 URL で渡す） */
+export interface PdfjsAssetParams {
+	cMapUrl: string;
+	cMapPacked: boolean;
+	standardFontDataUrl: string;
+	wasmUrl: string;
+	iccUrl: string;
+}
+
+export interface RasterTask {
+	/** 呼び出し元の並び上の位置（結果の挿入先） */
+	index: number;
+	fileId: string;
+	pageIndex: number;
+	rotation: Rotation;
+}
+
+export interface RasterRequest {
+	files: { id: string; bytes: Uint8Array }[];
+	tasks: RasterTask[];
+	settings: Settings;
+	assetParams: PdfjsAssetParams;
+}
+
+export type RasterResponse =
+	| {
+			type: 'page';
+			index: number;
+			bytes: Uint8Array;
+			format: 'jpeg' | 'png';
+			/** ページの表示サイズ（pt、回転適用後） */
+			widthPts: number;
+			heightPts: number;
+	  }
+	| { type: 'done' }
+	| { type: 'error'; message: string };
