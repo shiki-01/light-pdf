@@ -1,3 +1,4 @@
+import { base } from '$app/paths';
 import { PDFJS_ASSET_PARAMS, pdfjs, type PDFDocumentProxy } from './pdfjs';
 import type { LoadedFile, LoadError, PageItem } from '../types';
 
@@ -194,21 +195,111 @@ async function loadPdf(
 	return { loaded, pages };
 }
 
+/* libheif（WASM バンドル）の最小型定義 */
+interface LibheifImage {
+	get_width(): number;
+	get_height(): number;
+	display(
+		dest: { data: Uint8ClampedArray<ArrayBuffer>; width: number; height: number },
+		cb: (result: { data: Uint8ClampedArray<ArrayBuffer> } | null) => void
+	): void;
+	free(): void;
+}
+interface Libheif {
+	ready?: Promise<unknown>;
+	HeifDecoder: new () => { decode(bytes: Uint8Array): LibheifImage[]; decoder: { delete(): void } };
+}
+
+let libheifPromise: Promise<Libheif> | null = null;
+
+/**
+ * libheif の WASM バンドルを実行時に読み込む。
+ * ビルドには含めず静的アセット（/heic/）として配信し、
+ * HEIC が投入されるまでダウンロードしない（遅延ロード、要件 3.1）。
+ */
+function loadLibheif(): Promise<Libheif> {
+	libheifPromise ??= import(/* @vite-ignore */ `${base}/heic/libheif-bundle.mjs`).then(
+		async (m: { default: () => Libheif | Promise<Libheif> }) => {
+			const lib = await m.default();
+			await lib.ready;
+			return lib;
+		}
+	);
+	return libheifPromise;
+}
+
+/**
+ * HEIC/HEIF を WASM デコーダー（libheif 系）でデコードして JPEG / PNG に変換する。
+ * 回転・切り抜きは libheif 側で適用済みの状態で得られる。
+ */
+async function convertHeic(bytes: Uint8Array): Promise<Uint8Array<ArrayBuffer> | null> {
+	try {
+		const libheif = await loadLibheif();
+		const decoder = new libheif.HeifDecoder();
+		const images = decoder.decode(bytes);
+		if (images.length === 0) return null;
+		let width: number, height: number, pixels: Uint8ClampedArray<ArrayBuffer>;
+		try {
+			const image = images[0];
+			width = image.get_width();
+			height = image.get_height();
+			pixels = await new Promise<Uint8ClampedArray<ArrayBuffer>>((resolve, reject) => {
+				image.display(
+					{ data: new Uint8ClampedArray(width * height * 4), width, height },
+					(result) => {
+						if (result) resolve(result.data);
+						else reject(new Error('HEIC のデコードに失敗しました'));
+					}
+				);
+			});
+		} finally {
+			for (const image of images) image.free();
+			decoder.decoder.delete();
+		}
+		const canvas = document.createElement('canvas');
+		canvas.width = width;
+		canvas.height = height;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return null;
+		ctx.putImageData(new ImageData(pixels, width, height), 0, 0);
+		// 透過を持つ場合のみ PNG、それ以外は JPEG（写真主体のため）
+		let hasAlpha = false;
+		for (let i = 3; i < pixels.length; i += 4) {
+			if (pixels[i] < 255) {
+				hasAlpha = true;
+				break;
+			}
+		}
+		const blob = await new Promise<Blob | null>((resolve) =>
+			canvas.toBlob(resolve, hasAlpha ? 'image/png' : 'image/jpeg', 0.92)
+		);
+		return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+	} catch {
+		return null;
+	}
+}
+
 async function loadImage(
 	file: File,
 	cb: LoadCallbacks
 ): Promise<{ loaded: LoadedFile; pages: PageItem[] } | LoadError> {
+	let bytes = new Uint8Array(await file.arrayBuffer());
+	let bitmapSource: Blob = file;
 	if (isHeic(file)) {
-		return {
-			name: file.name,
-			message: 'HEIC は現在未対応です（対応予定）。JPEG 等に変換してから投入してください'
-		};
+		const converted = await convertHeic(bytes);
+		if (!converted) {
+			return {
+				name: file.name,
+				message: 'HEIC のデコードに失敗しました。JPEG 等に変換してから投入してください'
+			};
+		}
+		bytes = converted;
+		bitmapSource = new Blob([converted as BlobPart]);
 	}
-	const bytes = new Uint8Array(await file.arrayBuffer());
 	let bmp: ImageBitmap;
 	try {
 		// EXIF Orientation を反映して取り込む（要件 3.1）
-		bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+		bmp = await createImageBitmap(bitmapSource, { imageOrientation: 'from-image' });
 	} catch {
 		return { name: file.name, message: '画像のデコードに失敗しました' };
 	}
@@ -262,7 +353,10 @@ export async function loadFiles(
 			} else if (isImage(file)) {
 				r = await loadImage(file, cb);
 			} else {
-				r = { name: file.name, message: '対応していない形式です（PDF / JPEG / PNG / WebP / GIF）' };
+				r = {
+					name: file.name,
+					message: '対応していない形式です（PDF / JPEG / PNG / WebP / GIF / HEIC）'
+				};
 			}
 			if ('loaded' in r) {
 				result.files.push(r.loaded);

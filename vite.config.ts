@@ -15,7 +15,15 @@ export default defineConfig({
 					rename: { stripBase: true }
 				},
 				{ src: 'node_modules/pdfjs-dist/wasm/*', dest: 'pdfjs/wasm', rename: { stripBase: true } },
-				{ src: 'node_modules/pdfjs-dist/iccs/*', dest: 'pdfjs/iccs', rename: { stripBase: true } }
+				{ src: 'node_modules/pdfjs-dist/iccs/*', dest: 'pdfjs/iccs', rename: { stripBase: true } },
+				// HEIC デコーダー（libheif WASM 同梱バンドル）。改変せず同梱し、
+				// HEIC が投入されるまでダウンロードしない（遅延ロード、要件 3.1 / 5）
+				{
+					src: 'node_modules/libheif-js/libheif-wasm/libheif-bundle.mjs',
+					dest: 'heic',
+					rename: { stripBase: true }
+				},
+				{ src: 'node_modules/libheif-js/LICENSE*', dest: 'heic', rename: { stripBase: true } }
 			]
 		})
 	],

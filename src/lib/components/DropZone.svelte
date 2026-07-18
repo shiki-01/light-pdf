@@ -44,7 +44,7 @@
 	{:else}
 		<p class="main">PDF・画像をページ内にドロップ</p>
 		<p class="sub">またはタップしてファイルを選択（Ctrl+V での貼り付けも可）</p>
-		<p class="sub">対応形式: PDF / JPEG / PNG / WebP / GIF</p>
+		<p class="sub">対応形式: PDF / JPEG / PNG / WebP / GIF / HEIC</p>
 	{/if}
 </div>
 
