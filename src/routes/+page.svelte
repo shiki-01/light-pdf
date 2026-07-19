@@ -5,6 +5,7 @@
   import PageGrid from "$lib/components/PageGrid.svelte";
   import ProgressOverlay from "$lib/components/ProgressOverlay.svelte";
   import PreviewModal from "$lib/components/PreviewModal.svelte";
+  import CompareModal from "$lib/components/CompareModal.svelte";
   import HelpModal from "$lib/components/HelpModal.svelte";
   import ResultPanel, {
     type ResultData,
@@ -37,6 +38,7 @@
   let loading = $state(false);
   let processing = $state<ProgressInfo | null>(null);
   let result = $state<ResultData | null>(null);
+  let compareOpen = $state(false);
   let previewItem = $state<PageItem | null>(null);
   let processError = $state<string | null>(null);
   let abortController: AbortController | null = null;
@@ -63,6 +65,7 @@
     Object.assign(settings, DEFAULT_SETTINGS, PRESET_VALUES[id], {
       outputName: settings.outputName,
       unifyWidth: settings.unifyWidth,
+      splitZip: settings.splitZip,
     });
   }
 
@@ -84,9 +87,12 @@
         onPage: (page) => {
           pages.push(page);
         },
-        onThumb: (pageId, url) => {
+        onThumb: (pageId, thumb) => {
           const item = pages.find((p) => p.id === pageId);
-          if (item) item.thumbUrl = url;
+          if (item) {
+            item.thumbUrl = thumb.url;
+            item.isBlank = thumb.isBlank;
+          }
         },
       });
       for (const f of r.files) files.set(f.id, f);
@@ -139,15 +145,19 @@
     if (list.length > 0) void addFiles(list);
   }
 
-  function defaultOutputName(): string {
+  function outputFileName(): string {
+    const ext = settings.splitZip ? ".zip" : ".pdf";
+    const typed = settings.outputName.trim().replace(/\.(pdf|zip)$/i, "");
+    if (typed) return typed + ext;
     const first = pages[0] ? files.get(pages[0].fileId) : undefined;
     const base = (first?.name ?? "output").replace(/\.[^.]+$/, "");
-    return `${base}_light.pdf`;
+    return `${base}_light${ext}`;
   }
 
   async function run() {
     processError = null;
     result = null;
+    compareOpen = false;
     abortController = new AbortController();
     processing = { label: "準備中", done: 0, total: pages.length };
     try {
@@ -160,9 +170,9 @@
         },
         abortController.signal,
       );
-      const fileName = settings.outputName.trim() || defaultOutputName();
+      const fileName = outputFileName();
       const file = new File([bytes as BlobPart], fileName, {
-        type: "application/pdf",
+        type: settings.splitZip ? "application/zip" : "application/pdf",
       });
       if (lastResultUrl != null) URL.revokeObjectURL(lastResultUrl);
       lastResultUrl = URL.createObjectURL(file);
@@ -172,6 +182,10 @@
         inputSize: totalInputSize,
         outputSize: bytes.length,
         file,
+        bytes,
+        // 前後比較用に処理時点のページ順を保持する（後から編集されても対応が崩れないように）
+        pages: pages.map((p) => ({ ...p })),
+        isZip: settings.splitZip,
       };
     } catch (e) {
       if (!(e instanceof CancelledError)) {
@@ -193,6 +207,7 @@
     files.clear();
     errors = [];
     result = null;
+    compareOpen = false;
   }
 </script>
 
@@ -256,7 +271,11 @@
     {/if}
 
     {#if result}
-      <ResultPanel {result} onBack={() => (result = null)} />
+      <ResultPanel
+        {result}
+        onBack={() => (result = null)}
+        onCompare={() => (compareOpen = true)}
+      />
     {/if}
 
     {#if processError}
@@ -308,6 +327,15 @@
 
 {#if processing}
   <ProgressOverlay progress={processing} onCancel={cancel} />
+{/if}
+
+{#if compareOpen && result && !result.isZip}
+  <CompareModal
+    bytes={result.bytes}
+    pages={result.pages}
+    imageBytes={(fileId) => files.get(fileId)?.bytes ?? null}
+    onClose={() => (compareOpen = false)}
+  />
 {/if}
 
 {#if previewItem}

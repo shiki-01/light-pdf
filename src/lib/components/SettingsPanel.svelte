@@ -76,6 +76,10 @@
 			<input type="checkbox" bind:checked={settings.removeAnnotations} />
 		</label>
 		<label class="row">
+			<span>ZIP 出力（ページごとに個別 PDF）</span>
+			<input type="checkbox" bind:checked={settings.splitZip} />
+		</label>
+		<label class="row">
 			<span>出力ファイル名</span>
 			<input
 				type="text"
