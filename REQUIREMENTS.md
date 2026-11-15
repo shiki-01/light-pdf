@@ -4,7 +4,7 @@ PDF を軽量化するクライアントサイド完結型 Web サービスの�
 
 - 作成日: 2026-07-17 / 最終更新: 2026-07-18
 - ステータス: 確定（実装前検証は完了。結果はセクション 8 に記載）
-- 公開先: https://light-pdf.pages.dev （Cloudflare Pages）
+- 公開先: https://light-pdf.shiki-01.com （Cloudflare Pages）
 
 ---
 
@@ -186,7 +186,7 @@ PDF を軽量化するクライアントサイド完結型 Web サービスの�
 | 画像処理 | OffscreenCanvas + `canvas.toBlob()` | 縮小・JPEG / PNG 再エンコード |
 | HEIC デコード | libheif 系 WASM（遅延ロード） | HEIC 入力対応 |
 | 並列化 | Web Worker（Comlink 等） | 処理のオフロード |
-| ホスティング | Cloudflare Pages（kishintorii@gmail.com アカウント、light-pdf.pages.dev） | 静的配信 |
+| ホスティング | Cloudflare Pages（kishintorii@gmail.com アカウント、light-pdf.shiki-01.com） | 静的配信 |
 
 ### ライブラリ選定の根拠と方針
 
@@ -202,7 +202,7 @@ PDF を軽量化するクライアントサイド完結型 Web サービスの�
 
 - Cloudflare Pages に GitHub リポジトリ連携でデプロイ（main ブランチ → 本番、PR → プレビュー）
 - ビルド: `npm run build`（SvelteKit adapter-static の静的出力）
-- カスタムドメインは当面使用せず light-pdf.pages.dev で運用
+- カスタムドメイン light-pdf.shiki-01.com で運用
 
 ## 7. 追加機能（優先度付きバックログ）
 
@@ -259,6 +259,6 @@ PDF を軽量化するクライアントサイド完結型 Web サービスの�
 | ラスタライズ時のフォーマット | 自動選択 + 詳細設定で手動指定可 |
 | 旧リーダー互換 | 捨てる。PDF 1.7 / オブジェクトストリーム常時有効 |
 | 対応言語 | 日本語のみ |
-| サービス名・公開先 | light-pdf / light-pdf.pages.dev（Cloudflare Pages） |
+| サービス名・公開先 | light-pdf / light-pdf.shiki-01.com（Cloudflare Pages） |
 | UI 方針 | 基本画面はプリセット選択と「横幅を揃える」のみ。他の設定は詳細設定に集約 |
 | フレームワーク | SvelteKit（adapter-static） |
