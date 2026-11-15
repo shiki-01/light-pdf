@@ -3,7 +3,7 @@
 PDF・画像をブラウザ内で結合・軽量化するクライアントサイド完結型 Web サービス。
 ファイルは一切サーバーに送信されない。要件定義は [REQUIREMENTS.md](./REQUIREMENTS.md) を参照。
 
-- 公開先: https://light-pdf.pages.dev （Cloudflare Pages）
+- 公開先: https://light-pdf.shiki-01.com （Cloudflare Pages）
 
 ## 開発
 
